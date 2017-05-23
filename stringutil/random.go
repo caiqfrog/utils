@@ -1,8 +1,13 @@
 package stringutil
 
-import "crypto/rand"
-import "time"
-import MathRand "math/rand"
+import (
+	"bytes"
+	"crypto/rand"
+	"encoding/binary"
+	"time"
+
+	MathRand "math/rand"
+)
 
 // 随机字符集类型
 type RandomType uint
@@ -42,22 +47,28 @@ func Random(count int, types ...RandomType) string {
 		}
 	}
 	//
-	buf := make([]byte, count)
+	buf := make([]byte, count*2)
 	// 真随机
 	offset, _ := rand.Read(buf)
+
+	bbuf := bytes.NewBuffer(buf)
 	// 根据时间种子获得的伪随机
 	if offset != count {
 		seeder := MathRand.New(MathRand.NewSource(time.Now().UnixNano()))
-		for i := offset; i < count; i++ {
-			buf[i] = byte(seeder.Int31n(0xFF))
+		for i := offset; i < count; i += 8 {
+			i64 := seeder.Int63()
+			// FIXME 错误处理
+			binary.Write(bbuf, binary.BigEndian, i64)
 		}
 	}
 	//
-	lSet := len(set)
+	lset := len(set)
 	result := make([]byte, count)
-	for idx, val := range buf {
-		n := int(uint(val))
-		result[idx] = set[n%lSet]
+
+	for i := 0; i < count; i++ {
+		x := uint16(0)
+		binary.Read(bbuf, binary.BigEndian, &x)
+		result[i] = set[int(x)%lset]
 	}
 	return string(result)
 }
